@@ -221,7 +221,6 @@ float findEcart(int *tab, int size)
 	    result+=(tab[count]-moy)*(tab[count]-moy);	
 	    count +=1;
 	}
-	result = result/size;
 	return sqrt(result);
 }
 
