@@ -1,0 +1,206 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include "client.h"
+
+#include "bmp.h"
+#include "jsonParser.h"
+#include "validateur.h"
+
+/* send and receive message */
+int envoie_recois(int socketfd, char* data, char* type)
+{
+  transformToJson(data);
+  /* send a message to server and catch errors */
+  if(valideJson(data, 1) != 0){
+    perror("ERREUR !");
+    return -1;
+  }
+  int write_status = write(socketfd, data, strlen(data));
+  if ( write_status < 0 )
+  {
+    perror("erreur ecriture");
+    exit(EXIT_FAILURE);
+  }
+
+  /* wait for the server's answer and save it into retunData */
+  char returnData[1000], code[100];
+  int read_status = read(socketfd, returnData, sizeof(returnData));
+
+  if(valideJson(returnData, 0) != 0){
+      perror("ERREUR !");
+      return -1;
+  }
+
+  if ( read_status < 0 )
+  {
+    perror("erreur lecture");
+    return -1;
+  }
+  decodeFromJson(returnData, code);
+  /* display the answer */
+  printf("%s : %s\n", type, returnData);
+
+  return 0;
+}
+
+int envoie_couleurs(int socketfd, char *pathname)
+{
+  char data[1024];
+  memset(data, 0, sizeof(data));
+  int nbColors = 10;
+  printf("Entrez le nombre de couleurs que vous souhaitez afficher (valeur entière)\n");
+  scanf("%d", &nbColors);
+  if(nbColors > 30)
+  {
+    printf("Merci de saisir une valeur inférieure à 30. \n");
+    return 0;
+  }
+  analyse(pathname, data, nbColors);
+  transformToJson(data);
+  if(valideJson(data, 1) != 0){
+        perror("ERREUR ! Syntaxe Json incorrecte.");
+        return -1;
+  }
+  int write_status = write(socketfd, data, strlen(data));
+
+  if ( write_status < 0 )
+  {
+    perror("erreur ecriture");
+    exit(EXIT_FAILURE);
+  }
+
+  return 0;
+}
+
+int analyse(char *pathname, char *data, int nbColors)
+{
+  //compte de couleurs
+  printf("%s \n", pathname);
+  couleur_compteur *cc = analyse_bmp_image(pathname);
+
+  int count;
+  strcpy(data, "plot: ");
+  char temp_string[10];
+  sprintf(temp_string, "%d,", nbColors);
+  if (cc->size < nbColors)
+  {
+    sprintf(temp_string, "%d,", cc->size);
+  }
+  strcat(data, temp_string);
+
+  //choisir nbColors couleurs
+  for (count = 1; count < nbColors+1 && cc->size - count >0; count++)
+  {
+    if(cc->compte_bit ==  BITS32)
+    {
+      sprintf(temp_string, "#%02x%02x%02x,", cc->cc.cc24[cc->size-count].c.rouge,cc->cc.cc32[cc->size-count].c.vert,cc->cc.cc32[cc->size-count].c.bleu);
+    }
+    if(cc->compte_bit ==  BITS24)
+    {
+      sprintf(temp_string, "#%02x%02x%02x,", cc->cc.cc32[cc->size-count].c.rouge,cc->cc.cc32[cc->size-count].c.vert,cc->cc.cc32[cc->size-count].c.bleu);
+    }
+    strcat(data, temp_string);
+  }
+
+  //enlever le dernier virgule
+  data[strlen(data)-1] = '\0';
+
+  return 0;
+}
+
+/* display help */
+int display_help(int socketfd)
+{
+  printf("\n Les différentes commandes : \n");
+  printf("\n  message: 'votre message'\n [envoie un message au serveur qui vous répondra]\n");
+  printf("\n  nom: 'votre nom'\n [envoie votre nom au serveur qui vous le renvoie]\n");
+  printf("\n  calcul: 'operateur nombre1 nombre2'\n [exemple: calcul: + 20 10, retourne le résultat de 20 + 10]\n");
+  printf("\n  couleurs: 'nombreCouleurs, couleur1, couleur2, ...'\n [exemple: couleurs: 3, #ffffff, #12df4f, #000000, enregistre les couleurs dans un fichier]\n");
+  printf("\n  plot: 'URL vers une image BMP'\n [exemple: plot: ../Images/rose.bmp, affiche les couleurs prédominantes de l'image.]\n");
+  printf("\n  help pour afficher l'aide\n");
+
+  //ask again user to write a command
+  select_type_message(socketfd);
+
+  return 0;
+}
+
+/* Wait for the user to write something and redirect to proper function, if command doesnt exist display an error message */
+int select_type_message(int socketfd)
+{
+  char data[1024], message[100], code[10], pathname[30];
+  memset(data, 0, sizeof(data));
+
+  /* ask for a message a save the result in data */
+  printf("\nMessage ? (max 1000 caracteres): \n");
+  printf("[Tapez 'help' pour afficher l'aide] \n");
+  fgets(message, 1024, stdin);
+  message[strlen(message)-1] = '\0';
+  strcat(data, message);
+  sscanf(data, "%s %s", code, pathname);
+  if (strcmp(code, "message:") == 0)
+  {
+	envoie_recois(socketfd, data, "Réponse serveur");
+  } else if(strcmp(code, "nom:") == 0)
+  {
+	envoie_recois(socketfd, data, "Votre nom");
+  } else if(strcmp(code, "calcul:") == 0)
+  {
+	envoie_recois(socketfd, data, "Résultat");
+  } else if(strcmp(code, "couleurs:") == 0)
+  {
+	envoie_recois(socketfd, data, "Serveur");
+  } else if(strcmp(code, "plot:") == 0)
+  {
+	envoie_couleurs(socketfd, pathname);
+  }else if(strcmp(code, "help") == 0)
+  {
+	display_help(socketfd);
+  }else
+  {
+	printf("Veuilez entrer une commande valide\n ");
+	display_help(socketfd);
+  }
+
+  return 0;
+}
+
+int main() {
+  int socketfd;
+  int bind_status;
+
+  struct sockaddr_in server_addr, client_addr;
+
+  /*
+   * Socket creation
+   */
+  socketfd = socket(AF_INET, SOCK_STREAM, 0);
+  if ( socketfd < 0 ) {
+    perror("socket");
+    exit(EXIT_FAILURE);
+  }
+
+  //server details (port and address)
+  memset(&server_addr, 0, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(PORT);
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+
+  //ask for the server to connect
+  int connect_status = connect(socketfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
+  if ( connect_status < 0 ) {
+    perror("connection serveur");
+    exit(EXIT_FAILURE);
+  }
+
+  //select action to do
+  select_type_message(socketfd);
+
+  //close socket
+  close(socketfd);
+}
