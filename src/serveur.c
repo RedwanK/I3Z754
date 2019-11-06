@@ -65,13 +65,17 @@ int renvoie(int client_socket_fd, char *data, char *code)
   strcat(answer, code);
   strcat(answer,": ");
   strcat(answer, data);
+  //transform to JSON the user's message
   transformToJson(answer);
 
+  //check if JSON (syntax + consistency) is valid
   if(valideJson(answer, 0) != 0){
       perror("ERREUR ! Syntaxe Json incorrecte.");
       return -1;
   }
-    printf("ANSWER : %s", answer);
+
+  printf("SEND MESSAGE :\n %s", answer);
+  //send message to client
   int data_size = write (client_socket_fd, (void *) answer, strlen(answer));
 
   if (data_size < 0)
@@ -81,16 +85,16 @@ int renvoie(int client_socket_fd, char *data, char *code)
   }
 }
 
-//receive a message and ask the server to answer this message
+//receive a message and ask the server to answer
 int recois_message(int client_socket_fd, char* data, char *code)
 {
   char message[1000], returnData[1000] = "";
   memset(returnData, 0, sizeof(returnData));
-  printf("Votre message (max 1000 caracteres): ");
+  printf("Votre Reponse : [max 1000 caracteres] \n");
   fgets(message, 1024, stdin);
   message[strlen(message)-1] = '\0';
   strcat(returnData, message);
-
+  //call "renvoie" to send the message
   renvoie(client_socket_fd, returnData, code);
 }
 
@@ -99,16 +103,15 @@ int recois_numero_calcul(int client_socket_fd, char* data, char* code)
 {
  char operateur[50]="", numStr1[10], numStr2[10];
  char result[200] = "Veuillez entrer un opérateur arithmétique valable (+|-|*|/) [division par 0 interdite !]";
-
+ 
  int tabNumbers[500];
  float resultat;
- int tabSize = getNumbers(data, tabNumbers, operateur);
- printf("OPERATEUR %s\n", operateur);
+ 
+ //extract a int tab from the client message
+ int tabSize = getNumbers(data, tabNumbers,  operateur);
  int count = 0;
- printf("TABSIZE %d\n", tabSize);
  while(count<tabSize) 
  {
-    printf("MONCH %d\n",tabNumbers[count]);
     if(count == 0) 
     {
 	resultat = tabNumbers[count];
@@ -308,6 +311,7 @@ int recois_envoie_message(int socketfd) {
   //lecture de données envoyées par un client
   int data_size = read (client_socket_fd, (void *) data, sizeof(data));
 
+  //check
   if(valideJson(data, 1) != 0){
       perror("ERREUR ! Syntaxe Json incorrecte.");
       return -1;

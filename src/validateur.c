@@ -13,10 +13,16 @@
 #include <unistd.h>
 #include "validateur.h"
 
+/* 
+"valideJson" use all the other functions of the file, 
+to check if syntax and consistency of the Json message received are ok.
+*/
 int valideJson(char *message, int from)
 {
     char json[2000] = "";
     strcpy(json, message);
+
+    //first of all check if the message starts with '}'
     if(json[0] != '{')
     {
         perror("ERREUR DE SYNTAXE JSON");
