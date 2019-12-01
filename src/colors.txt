@@ -8,3 +8,14 @@ emilio
 daryl
 emilio
 lulu
+daryl
+et
+daryl
+et
+emilio
+#ffffff
+#ababab
+#000000
+#ffffff
+#ababab
+#000000

@@ -60,6 +60,7 @@ int transformToJson(char* data)
   strcpy(jsonResponse, "{\n \"code\" : \"");
   strcat(jsonResponse, code);
   strcat(jsonResponse, "\", \n \"valeurs\" :  [");
+  
   while(1)
   {
     char *token = strtok_r(str, ", ", &saveptr);
