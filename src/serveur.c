@@ -294,50 +294,59 @@ int recois_couleurs(int client_socket_fd, char* data, char *code)
  * en retour
  */
 int recois_envoie_message(int socketfd) {
-  struct sockaddr_in client_addr;
-  char data[1024], code[200];
+  while(1)
+  {
+    struct sockaddr_in client_addr;
+    char data[1024], code[200];
 
-  int client_addr_len = sizeof(client_addr);
+    int client_addr_len = sizeof(client_addr);
 
-  // nouvelle connection de client
-  int client_socket_fd = accept(socketfd, (struct sockaddr *) &client_addr, &client_addr_len);
-  if (client_socket_fd < 0 ) {
-    perror("accept");
-    return(EXIT_FAILURE);
+    // nouvelle connection de client
+    int client_socket_fd = accept(socketfd, (struct sockaddr *) &client_addr, &client_addr_len);
+    if(fork() == 0)
+    {
+      if (client_socket_fd < 0 ) {
+        perror("accept");
+        return(EXIT_FAILURE);
+      }
+
+      memset(data, 0, sizeof(data));
+
+      //lecture de données envoyées par un client
+      int data_size = read (client_socket_fd, (void *) data, sizeof(data));
+
+      //check
+      if(valideJson(data, 1) != 0){
+          perror("ERREUR ! Syntaxe Json incorrecte.");
+          return -1;
+      }
+      if (data_size < 0) {
+        perror("erreur lecture");
+        return(EXIT_FAILURE);
+      }
+
+      decodeFromJson(data, code);
+      printf ("Reception : %s\n", data);
+
+      if (strcmp(code, "message") == 0) {
+      recois_message(client_socket_fd, data, code);
+      } else if (strcmp(code, "nom") == 0) {
+      renvoie(client_socket_fd, data, code);
+      } else if (strcmp(code, "calcul") == 0) {
+      recois_numero_calcul(client_socket_fd, data, code);
+      } else if (strcmp(code, "couleurs") == 0) {
+      recois_couleurs(client_socket_fd, data, code);
+      } else if (strcmp(code, "plot") == 0) {
+      plot(data);
+      }
+
+      //fermer le socket
+      close(client_socket_fd);
+    } else 
+    {
+      close(client_socket_fd);
+    }
   }
-
-  memset(data, 0, sizeof(data));
-
-  //lecture de données envoyées par un client
-  int data_size = read (client_socket_fd, (void *) data, sizeof(data));
-
-  //check
-  if(valideJson(data, 1) != 0){
-      perror("ERREUR ! Syntaxe Json incorrecte.");
-      return -1;
-  }
-  if (data_size < 0) {
-    perror("erreur lecture");
-    return(EXIT_FAILURE);
-  }
-
-  decodeFromJson(data, code);
-  printf ("Reception : %s\n", data);
-
-  if (strcmp(code, "message") == 0) {
- 	recois_message(client_socket_fd, data, code);
-  } else if (strcmp(code, "nom") == 0) {
-	renvoie(client_socket_fd, data, code);
-  } else if (strcmp(code, "calcul") == 0) {
-	recois_numero_calcul(client_socket_fd, data, code);
-  } else if (strcmp(code, "couleurs") == 0) {
-	recois_couleurs(client_socket_fd, data, code);
-  } else if (strcmp(code, "plot") == 0) {
-	plot(data);
-  }
-
-  //fermer le socket
-  close(socketfd);
 }
 
 int main() {
@@ -373,7 +382,10 @@ int main() {
   }
 
   listen(socketfd, 10);
+  
   recois_envoie_message(socketfd);
+  
+  
 
   return 0;
 }
